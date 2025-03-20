@@ -1,0 +1,57 @@
+import boto3
+import csv
+import os
+
+# Initialize AWS clients
+dynamodb = boto3.resource("dynamodb")
+s3_client = boto3.client("s3")
+
+# DynamoDB table and S3 bucket details
+DYNAMODB_TABLE = "MarkSheet"  # Your actual DynamoDB table name
+S3_BUCKET_NAME = "qws34"      # Your actual S3 bucket name
+CSV_FILE_NAME = "/tmp/new.csv" # Temporary file in Lambda
+S3_KEY = "new.csv"             # Path where file will be stored in S3
+
+def lambda_handler(event, context):
+    table = dynamodb.Table(DYNAMODB_TABLE)
+    
+    # Scan DynamoDB table to get all items
+    response = table.scan()
+    items = response.get("Items", [])
+
+    if not items:
+        print("No data found in DynamoDB table.")
+        return {
+            "statusCode": 404,
+            "body": "No data found in DynamoDB."
+        }
+    
+    # Correct headers based on DynamoDB fields
+    headers = ["Roll_no", "Name", "Mark"]
+
+    # Write data to a temporary CSV file
+    with open(CSV_FILE_NAME, mode="w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=headers)
+        writer.writeheader()  # Write CSV headers
+        
+        for item in items:
+            writer.writerow({
+                "Roll_no": item.get("Roll_no", " "),
+                "Name": item.get("Name", ""),
+                "Mark": item.get("Mark", " ")
+            })
+
+    print(f"CSV file created successfully: {CSV_FILE_NAME}")
+
+    # Upload the CSV file to S3
+    s3_client.upload_file(CSV_FILE_NAME, S3_BUCKET_NAME, S3_KEY)
+
+    print(f"CSV file uploaded to S3: s3://{S3_BUCKET_NAME}/{S3_KEY}")
+
+    # Clean up temporary file (optional)
+    os.remove(CSV_FILE_NAME)
+
+    return {
+        "statusCode": 200,
+        "body": f"CSV file successfully uploaded to s3://{S3_BUCKET_NAME}/{S3_KEY}"
+    }
