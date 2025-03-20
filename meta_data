@@ -1,0 +1,33 @@
+import boto3
+import datetime
+
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('Image_meta_data')  # Change to your actual table name
+
+def lambda_handler(event, context):
+    # Extract S3 event information
+    s3_event = event['Records'][0]['s3']
+    bucket_name = s3_event['bucket']['name']
+    object_key = s3_event['object']['key']
+    file_size = s3_event['object']['size']
+
+    # Current timestamp (upload time)
+    upload_time = datetime.datetime.utcnow().isoformat()
+
+    # Prepare metadata item
+    metadata_item = {
+        'file_id': object_key,                # Use S3 object key as primary key
+        'filename': object_key,
+        'size': file_size,
+        'upload_date': upload_time
+    }
+
+    # Store metadata into DynamoDB
+    table.put_item(Item=metadata_item)
+
+    print(f"Metadata stored for {object_key} in DynamoDB.")
+
+    return {
+        'statusCode': 200,
+        'body': f'Metadata stored for {object_key}'
+    }
